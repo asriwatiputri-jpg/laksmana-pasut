@@ -1,0 +1,264 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <SoftwareSerial.h>
+
+// ===============================
+// LCD I2C
+// ===============================
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// ===============================
+// Bluetooth HC-05
+// RX = Pin 2
+// TX = Pin 3
+// ===============================
+SoftwareSerial bluetooth(2, 3);
+
+// ===============================
+// Pin Sensor Ultrasonik
+// ===============================
+const int trigPin = 9;
+const int echoPin = 10;
+
+// ===============================
+// Pin Output
+// ===============================
+const int buzzer = 8;
+const int ledMerah = 6;
+
+// Tinggi sensor dari dasar (cm)
+const int tinggiSensor = 30;
+
+void setup() {
+
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  pinMode(buzzer, OUTPUT);
+  pinMode(ledMerah, OUTPUT);
+
+  digitalWrite(buzzer, LOW);
+  digitalWrite(ledMerah, LOW);
+
+  lcd.init();
+  lcd.backlight();
+
+  Serial.begin(9600);
+  bluetooth.begin(9600);
+
+    
+    introLogo(); }
+
+ void introLogo() {
+
+  // Logo
+  lcd.clear();
+  lcd.setCursor(3,0);
+  lcd.print("LAKSAMANA");
+  lcd.setCursor(5,1);
+  lcd.print("PASUT");
+
+  tone(buzzer,1000);
+  delay(600);
+  noTone(buzzer);
+
+  delay(1200);
+
+  // Booting
+  lcd.clear();
+  lcd.setCursor(3,0);
+  lcd.print("MENYIAPKAN");
+
+  lcd.setCursor(0,1);
+
+  for(int i=0; i<16; i++){
+
+    lcd.write(byte(255));
+
+    tone(buzzer,1800);   // Bunyi setiap langkah loading
+    delay(70);
+    noTone(buzzer);
+
+    delay(40);
+
+  }
+
+  // LCD OK
+  lcd.clear();
+  lcd.print("LCD........OK");
+  tone(buzzer,1500);
+  delay(200);
+  noTone(buzzer);
+  delay(500);
+
+  // SENSOR OK
+  lcd.clear();
+  lcd.print("SENSOR.....OK");
+  tone(buzzer,1700);
+  delay(200);
+  noTone(buzzer);
+  delay(500);
+
+  // HC-05 OK
+  lcd.clear();
+  lcd.print("HC-05......OK");
+  tone(buzzer,1900);
+  delay(200);
+  noTone(buzzer);
+  delay(500);
+
+  // READY
+  lcd.clear();
+  lcd.setCursor(2,0);
+  lcd.print("SISTEM SIAP");
+
+  // Nada selesai boot
+  tone(buzzer,1200);
+  delay(150);
+
+  tone(buzzer,1800);
+  delay(150);
+
+  tone(buzzer,2500);
+  delay(300);
+
+  noTone(buzzer);
+
+  delay(1500);
+
+  lcd.clear();
+
+}
+
+void loop() {
+
+  long durasi;
+  float jarak;
+  float tinggiAir;
+
+  // Trigger HC-SR04
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+
+  digitalWrite(trigPin, LOW);
+
+  durasi = pulseIn(echoPin, HIGH);
+
+  // Hitung jarak
+  jarak = durasi * 0.034 / 2;
+
+  // Hitung tinggi air
+  tinggiAir = tinggiSensor - jarak;
+
+  if (tinggiAir < 0)
+    tinggiAir = 0;
+
+  String status;
+
+  // ============================
+  // Status Air
+  // ============================
+
+  if (tinggiAir < 15) {
+
+    status = "AMAN";
+
+    digitalWrite(ledMerah, LOW);
+    digitalWrite(buzzer, LOW);
+
+  }
+  else if (tinggiAir < 25) {
+
+    status = "WASPADA";
+
+    digitalWrite(ledMerah, LOW);
+    digitalWrite(buzzer, LOW);
+
+  }
+  else {
+
+    status = "WARNING";
+
+    digitalWrite(ledMerah, HIGH);
+
+   for(int i=0;i<2;i++){
+
+    tone(buzzer,1200);
+    delay(120);
+
+    tone(buzzer,2200);
+    delay(120);
+
+}
+  }
+  if (status != "WARNING") {
+    noTone(buzzer);
+  }
+
+  
+  if (bluetooth.available()) {
+    char data = bluetooth.read();
+
+    if (data == '1') {
+      digitalWrite(ledMerah, HIGH);
+    }
+
+    if (data == '0') {
+      digitalWrite(ledMerah, LOW);
+    }
+  
+}
+
+  // ============================
+  // LCD
+  // ============================
+
+  lcd.clear();
+
+if(status=="WARNING"){
+
+    lcd.setCursor(1,0);
+    lcd.print("!! WARNING !!");
+
+    lcd.setCursor(0,1);
+    lcd.print("AIR:");
+    lcd.print(tinggiAir,1);
+    lcd.print("CM");
+
+}
+else{
+
+    lcd.setCursor(0,0);
+    lcd.print("LEVEL:");
+    lcd.print(tinggiAir,1);
+    lcd.print("CM");
+
+    lcd.setCursor(0,1);
+    lcd.print("STATUS:");
+
+    lcd.print(status);
+
+}
+
+  // ============================
+  // Serial Monitor
+  // ============================
+
+  Serial.print("Tinggi Air : ");
+  Serial.print(tinggiAir);
+  Serial.print(" cm | ");
+  Serial.println(status);
+
+  // ============================
+  // Bluetooth
+  // ============================
+
+  bluetooth.print(tinggiAir);
+  bluetooth.print(",");
+  bluetooth.println(status);
+
+  delay(1000);
+}
